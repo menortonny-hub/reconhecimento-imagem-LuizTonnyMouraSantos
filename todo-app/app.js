@@ -1,4 +1,4 @@
-// Simulação de banco de dados no localStorage
+// Funções de Banco de Dados (LocalStorage)
 const db = {
     getUsers: () => JSON.parse(localStorage.getItem('users')) || [],
     saveUsers: (users) => localStorage.setItem('users', JSON.stringify(users)),
@@ -9,25 +9,59 @@ const db = {
     removeCurrentUser: () => localStorage.removeItem('currentUser')
 };
 
-// --- LÓGICA DE AUTENTICAÇÃO ---
-
-function cadastrarUsuario(nome, email, senha) {
-    const users = db.getUsers();
-    if (users.find(u => u.email === email)) return alert("E-mail já cadastrado!");
-    users.push({ nome, email, senha });
-    db.saveUsers(users);
-    alert("Cadastro realizado!");
+// Funções de Navegação
+function showRegister() {
+    document.getElementById('app').innerHTML = `
+        <div class="glass-morphism p-8 rounded-2xl shadow-2xl text-white">
+            <h2 class="text-3xl font-bold mb-6 text-center">Cadastro</h2>
+            <form onsubmit="handleRegister(event)">
+                <div class="mb-4">
+                    <label class="block text-sm mb-2 text-gray-400">Nome</label>
+                    <input type="text" id="reg-nome" required class="w-full p-3 bg-slate-800 rounded-lg border border-slate-700 focus:border-blue-500 outline-none">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm mb-2 text-gray-400">E-mail</label>
+                    <input type="email" id="reg-email" required class="w-full p-3 bg-slate-800 rounded-lg border border-slate-700 focus:border-blue-500 outline-none">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm mb-2 text-gray-400">Senha</label>
+                    <input type="password" id="reg-senha" required class="w-full p-3 bg-slate-800 rounded-lg border border-slate-700 focus:border-blue-500 outline-none">
+                </div>
+                <button type="submit" class="w-full bg-green-600 hover:bg-green-500 p-3 rounded-lg font-bold transition-all mb-4">Criar Conta</button>
+            </form>
+            <p class="text-center text-sm text-gray-400">Já tem conta? <a href="index.html" class="text-blue-400">Fazer Login</a></p>
+        </div>
+    `;
 }
 
-function login(email, senha) {
-    const users = db.getUsers();
-    const user = users.find(u => u.email === email && u.senha === senha);
+// Handlers de Formulário
+function handleLogin(e) {
+    e.preventDefault();
+    const email = document.getElementById('login-email').value;
+    const senha = document.getElementById('login-senha').value;
+    const user = db.getUsers().find(u => u.email === email && u.senha === senha);
+    
     if (user) {
         db.setCurrentUser(user);
         renderDashboard();
     } else {
-        alert("E-mail ou senha incorretos!");
+        alert("Usuário ou senha incorretos.");
     }
+}
+
+function handleRegister(e) {
+    e.preventDefault();
+    const nome = document.getElementById('reg-nome').value;
+    const email = document.getElementById('reg-email').value;
+    const senha = document.getElementById('reg-senha').value;
+    
+    const users = db.getUsers();
+    if (users.find(u => u.email === email)) return alert("E-mail já cadastrado!");
+    
+    users.push({ nome, email, senha });
+    db.saveUsers(users);
+    alert("Cadastro concluído! Agora faça login.");
+    location.reload();
 }
 
 function logout() {
@@ -35,20 +69,15 @@ function logout() {
     location.reload();
 }
 
-// --- LÓGICA DE TAREFAS ---
-
+// Lógica de Tarefas
 function adicionarTarefa(titulo, tipo, descricao) {
     const user = db.getCurrentUser();
     const todos = db.getTodos();
-    const novaTarefa = {
+    todos.push({
         id: Date.now(),
         userId: user.email,
-        titulo,
-        tipo,
-        descricao,
-        done: false
-    };
-    todos.push(novaTarefa);
+        titulo, tipo, descricao, done: false
+    });
     db.saveTodos(todos);
     renderDashboard();
 }
@@ -60,48 +89,53 @@ function concluirTarefa(id) {
     renderDashboard();
 }
 
-// --- RENDERIZAÇÃO (Manipulação de DOM simplificada) ---
-
+// Renderização do Painel
 function renderDashboard() {
     const user = db.getCurrentUser();
-    if (!user) return; // Redirecionar para login se não logado
-
-    // Limpa a tela e injeta o HTML do painel
+    document.body.classList.remove('flex', 'items-center', 'justify-center'); // Ajusta layout para o painel
+    
     document.getElementById('app').innerHTML = `
-        <div class="p-6 text-white">
-            <header class="flex justify-between mb-8">
-                <h1 class="text-2xl">Olá, ${user.nome}</h1>
-                <button onclick="logout()" class="bg-red-600 px-4 py-2 rounded">Logout</button>
+        <div class="max-w-4xl mx-auto w-full p-6 text-white">
+            <header class="flex justify-between items-center mb-10">
+                <h1 class="text-2xl font-bold">Olá, ${user.nome} 👋</h1>
+                <button onclick="logout()" class="bg-red-500/20 hover:bg-red-500 p-2 px-4 rounded-lg transition-all">Sair</button>
             </header>
-            
-            <form onsubmit="event.preventDefault(); adicionarTarefa(this.titulo.value, this.tipo.value, this.descricao.value)" class="bg-gray-800 p-4 rounded mb-6">
-                <input name="titulo" placeholder="Título" required class="block w-full p-2 mb-2 bg-gray-700 rounded">
-                <select name="tipo" class="block w-full p-2 mb-2 bg-gray-700 rounded">
-                    <option value="Trabalho">Trabalho</option>
-                    <option value="Pessoal">Pessoal</option>
-                    <option value="Estudos">Estudos</option>
-                </select>
-                <textarea name="descricao" placeholder="Descrição" class="block w-full p-2 mb-2 bg-gray-700 rounded"></textarea>
-                <button type="submit" class="bg-blue-600 px-4 py-2 rounded">Adicionar Tarefa</button>
+
+            <form onsubmit="event.preventDefault(); adicionarTarefa(this.t.value, this.tp.value, this.d.value)" class="glass-morphism p-6 rounded-xl mb-10">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <input name="t" placeholder="Título da tarefa" required class="p-3 bg-slate-800 rounded-lg outline-none">
+                    <select name="tp" class="p-3 bg-slate-800 rounded-lg outline-none text-white">
+                        <option value="Trabalho">Trabalho</option>
+                        <option value="Pessoal">Pessoal</option>
+                        <option value="Estudos">Estudos</option>
+                    </select>
+                </div>
+                <textarea name="d" placeholder="Descrição (opcional)" class="w-full p-3 bg-slate-800 rounded-lg outline-none mb-4"></textarea>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 p-3 rounded-lg font-bold">Adicionar Tarefa</button>
             </form>
 
-            <div id="lista-tarefas"></div>
+            <div id="lista" class="grid gap-4"></div>
         </div>
     `;
 
-    const todos = db.getTodos().filter(t => t.userId === user.email);
-    const container = document.getElementById('lista-tarefas');
-    
-    if (todos.length === 0) {
-        container.innerHTML = "<p>Nenhuma tarefa cadastrada ainda.</p>";
+    const userTodos = db.getTodos().filter(t => t.userId === user.email);
+    const lista = document.getElementById('lista');
+
+    if (userTodos.length === 0) {
+        lista.innerHTML = `<p class="text-center text-gray-500">Nenhuma tarefa encontrada.</p>`;
     } else {
-        container.innerHTML = todos.map(t => `
-            <div class="bg-gray-800 p-4 mb-3 rounded glass-morphism ${t.done ? 'opacity-50' : ''}">
-                <h3 class="${t.done ? 'line-through' : ''}">${t.titulo}</h3>
-                <span class="text-xs bg-blue-500 px-2 rounded">${t.tipo}</span>
-                <p>${t.descricao}</p>
-                ${!t.done ? `<button onclick="concluirTarefa(${t.id})" class="bg-green-600 mt-2 px-2 py-1 rounded">Concluir</button>` : ''}
+        lista.innerHTML = userTodos.map(t => `
+            <div class="glass-morphism p-4 rounded-lg flex justify-between items-center ${t.done ? 'opacity-40' : ''}">
+                <div>
+                    <h3 class="font-bold ${t.done ? 'line-through' : ''}">${t.titulo}</h3>
+                    <p class="text-sm text-gray-400">${t.descricao}</p>
+                    <span class="text-[10px] uppercase font-bold bg-blue-900 px-2 py-0.5 rounded">${t.tipo}</span>
+                </div>
+                ${!t.done ? `<button onclick="concluirTarefa(${t.id})" class="bg-green-600 p-2 px-4 rounded text-xs font-bold">Concluir</button>` : '✅'}
             </div>
         `).join('');
     }
 }
+
+// Inicialização
+if (db.getCurrentUser()) renderDashboard();
