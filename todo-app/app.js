@@ -1,141 +1,399 @@
-// Funções de Banco de Dados (LocalStorage)
-const db = {
-    getUsers: () => JSON.parse(localStorage.getItem('users')) || [],
-    saveUsers: (users) => localStorage.setItem('users', JSON.stringify(users)),
-    getTodos: () => JSON.parse(localStorage.getItem('todos')) || [],
-    saveTodos: (todos) => localStorage.setItem('todos', JSON.stringify(todos)),
-    getCurrentUser: () => JSON.parse(localStorage.getItem('currentUser')),
-    setCurrentUser: (user) => localStorage.setItem('currentUser', JSON.stringify(user)),
-    removeCurrentUser: () => localStorage.removeItem('currentUser')
-};
+/**
+ * TaskFlow — app.js
+ * Lógica completa da aplicação To-Do
+ * Stack: HTML5 + Tailwind CSS (CDN) + JavaScript puro
+ * Persistência: localStorage (simula db.json com "users" e "todos")
+ */
 
-// Funções de Navegação
-function showRegister() {
-    document.getElementById('app').innerHTML = `
-        <div class="glass-morphism p-8 rounded-2xl shadow-2xl text-white">
-            <h2 class="text-3xl font-bold mb-6 text-center">Cadastro</h2>
-            <form onsubmit="handleRegister(event)">
-                <div class="mb-4">
-                    <label class="block text-sm mb-2 text-gray-400">Nome</label>
-                    <input type="text" id="reg-nome" required class="w-full p-3 bg-slate-800 rounded-lg border border-slate-700 focus:border-blue-500 outline-none">
-                </div>
-                <div class="mb-4">
-                    <label class="block text-sm mb-2 text-gray-400">E-mail</label>
-                    <input type="email" id="reg-email" required class="w-full p-3 bg-slate-800 rounded-lg border border-slate-700 focus:border-blue-500 outline-none">
-                </div>
-                <div class="mb-6">
-                    <label class="block text-sm mb-2 text-gray-400">Senha</label>
-                    <input type="password" id="reg-senha" required class="w-full p-3 bg-slate-800 rounded-lg border border-slate-700 focus:border-blue-500 outline-none">
-                </div>
-                <button type="submit" class="w-full bg-green-600 hover:bg-green-500 p-3 rounded-lg font-bold transition-all mb-4">Criar Conta</button>
-            </form>
-            <p class="text-center text-sm text-gray-400">Já tem conta? <a href="index.html" class="text-blue-400">Fazer Login</a></p>
-        </div>
-    `;
+// ════════════════════════════════════════════════════════════════════
+// HELPERS DE PERSISTÊNCIA (localStorage como "banco de dados")
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * Retorna todos os usuários cadastrados.
+ * @returns {Array} Lista de objetos { nome, email, senha }
+ */
+function getUsers() {
+  return JSON.parse(localStorage.getItem('users') || '[]');
 }
 
-// Handlers de Formulário
-function handleLogin(e) {
-    e.preventDefault();
-    const email = document.getElementById('login-email').value;
-    const senha = document.getElementById('login-senha').value;
-    const user = db.getUsers().find(u => u.email === email && u.senha === senha);
-    
-    if (user) {
-        db.setCurrentUser(user);
-        renderDashboard();
-    } else {
-        alert("Usuário ou senha incorretos.");
-    }
+/**
+ * Salva a lista de usuários no localStorage.
+ * @param {Array} users
+ */
+function saveUsers(users) {
+  localStorage.setItem('users', JSON.stringify(users));
 }
 
-function handleRegister(e) {
-    e.preventDefault();
-    const nome = document.getElementById('reg-nome').value;
-    const email = document.getElementById('reg-email').value;
-    const senha = document.getElementById('reg-senha').value;
-    
-    const users = db.getUsers();
-    if (users.find(u => u.email === email)) return alert("E-mail já cadastrado!");
-    
-    users.push({ nome, email, senha });
-    db.saveUsers(users);
-    alert("Cadastro concluído! Agora faça login.");
-    location.reload();
+/**
+ * Retorna todas as tarefas armazenadas (de todos os usuários).
+ * @returns {Array} Lista de objetos tarefa
+ */
+function getTodos() {
+  return JSON.parse(localStorage.getItem('todos') || '[]');
 }
 
-function logout() {
-    db.removeCurrentUser();
-    location.reload();
+/**
+ * Salva a lista completa de tarefas no localStorage.
+ * @param {Array} todos
+ */
+function saveTodos(todos) {
+  localStorage.setItem('todos', JSON.stringify(todos));
 }
 
-// Lógica de Tarefas
-function adicionarTarefa(titulo, tipo, descricao) {
-    const user = db.getCurrentUser();
-    const todos = db.getTodos();
-    todos.push({
-        id: Date.now(),
-        userId: user.email,
-        titulo, tipo, descricao, done: false
-    });
-    db.saveTodos(todos);
-    renderDashboard();
+/**
+ * Retorna o usuário logado atualmente (ou null).
+ * @returns {Object|null}
+ */
+function getCurrentUser() {
+  return JSON.parse(localStorage.getItem('currentUser') || 'null');
 }
 
+/**
+ * Define o usuário logado no localStorage.
+ * @param {Object|null} user
+ */
+function setCurrentUser(user) {
+  if (user === null) {
+    localStorage.removeItem('currentUser');
+  } else {
+    localStorage.setItem('currentUser', JSON.stringify(user));
+  }
+}
+
+
+// ════════════════════════════════════════════════════════════════════
+// NAVEGAÇÃO ENTRE TELAS
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * Exibe apenas a tela cujo id é passado como parâmetro,
+ * ocultando todas as outras.
+ * @param {string} id - id do elemento <div> da tela
+ */
+function mostrarTela(id) {
+  document.querySelectorAll('.screen').forEach(el => {
+    el.classList.remove('active');
+  });
+  document.getElementById(id).classList.add('active');
+}
+
+
+// ════════════════════════════════════════════════════════════════════
+// AUTENTICAÇÃO
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * Registra um novo usuário.
+ * Valida campos obrigatórios, duplicidade de e-mail e comprimento de senha.
+ */
+function realizarCadastro() {
+  const nome  = document.getElementById('cad-nome').value.trim();
+  const email = document.getElementById('cad-email').value.trim().toLowerCase();
+  const senha = document.getElementById('cad-senha').value;
+  const erroEl = document.getElementById('cad-erro');
+
+  // Limpa erro anterior
+  erroEl.classList.remove('visible');
+
+  // Validações básicas
+  if (!nome || !email || !senha) {
+    erroEl.textContent = 'Preencha todos os campos.';
+    erroEl.classList.add('visible');
+    return;
+  }
+  if (senha.length < 6) {
+    erroEl.textContent = 'A senha deve ter pelo menos 6 caracteres.';
+    erroEl.classList.add('visible');
+    return;
+  }
+
+  const users = getUsers();
+
+  // Verifica duplicidade de e-mail
+  if (users.find(u => u.email === email)) {
+    erroEl.textContent = 'Este e-mail já está cadastrado.';
+    erroEl.classList.add('visible');
+    return;
+  }
+
+  // Salva novo usuário
+  users.push({ nome, email, senha });
+  saveUsers(users);
+
+  // Redireciona para login com os campos pré-limpos
+  document.getElementById('cad-nome').value  = '';
+  document.getElementById('cad-email').value = '';
+  document.getElementById('cad-senha').value = '';
+  mostrarTela('screen-login');
+}
+
+/**
+ * Autentica o usuário com e-mail e senha.
+ * Em caso de sucesso, salva currentUser e carrega o painel.
+ */
+function realizarLogin() {
+  const email = document.getElementById('login-email').value.trim().toLowerCase();
+  const senha = document.getElementById('login-senha').value;
+  const erroEl = document.getElementById('login-erro');
+
+  erroEl.classList.remove('visible');
+
+  // Valida campos vazios
+  if (!email || !senha) {
+    erroEl.textContent = 'Preencha e-mail e senha.';
+    erroEl.classList.add('visible');
+    return;
+  }
+
+  const users = getUsers();
+  const user  = users.find(u => u.email === email);
+
+  // Verifica se o e-mail existe
+  if (!user) {
+    erroEl.textContent = 'E-mail não encontrado.';
+    erroEl.classList.add('visible');
+    return;
+  }
+
+  // Verifica senha
+  if (user.senha !== senha) {
+    erroEl.textContent = 'Senha incorreta.';
+    erroEl.classList.add('visible');
+    return;
+  }
+
+  // Login bem-sucedido
+  setCurrentUser(user);
+  carregarPainel();
+}
+
+/**
+ * Encerra a sessão removendo currentUser do localStorage
+ * e redirecionando para a tela de login.
+ */
+function realizarLogout() {
+  setCurrentUser(null);
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-senha').value = '';
+  document.getElementById('login-erro').classList.remove('visible');
+  mostrarTela('screen-login');
+}
+
+
+// ════════════════════════════════════════════════════════════════════
+// PAINEL / DASHBOARD
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * Configura e exibe o painel do usuário logado.
+ * Atualiza a saudação e renderiza as tarefas.
+ */
+function carregarPainel() {
+  const user = getCurrentUser();
+  if (!user) {
+    mostrarTela('screen-login');
+    return;
+  }
+
+  // Saudação no header
+  document.getElementById('header-nome').textContent = user.nome;
+
+  // Exibe o painel e renderiza tarefas
+  mostrarTela('screen-dashboard');
+  renderizarTarefas();
+}
+
+/**
+ * Adiciona uma nova tarefa ao localStorage para o usuário logado.
+ * Valida que o título não esteja vazio.
+ */
+function adicionarTarefa() {
+  const titulo = document.getElementById('task-titulo').value.trim();
+  const tipo   = document.getElementById('task-tipo').value;
+  const desc   = document.getElementById('task-desc').value.trim();
+  const erroEl = document.getElementById('task-erro');
+  const user   = getCurrentUser();
+
+  erroEl.classList.remove('visible');
+
+  // Valida título obrigatório
+  if (!titulo) {
+    erroEl.textContent = 'O título da tarefa é obrigatório.';
+    erroEl.classList.add('visible');
+    return;
+  }
+
+  const todos = getTodos();
+
+  // Cria o objeto da tarefa
+  const novaTarefa = {
+    id:          Date.now(),          // timestamp como ID único
+    userId:      user.email,          // vincula ao usuário logado
+    titulo,
+    tipo,
+    descricao:   desc,
+    feita:       false,
+    criadaEm:    new Date().toLocaleDateString('pt-BR')
+  };
+
+  todos.push(novaTarefa);
+  saveTodos(todos);
+
+  // Limpa o formulário
+  document.getElementById('task-titulo').value = '';
+  document.getElementById('task-desc').value   = '';
+
+  renderizarTarefas();
+}
+
+/**
+ * Alterna o status "feita" de uma tarefa pelo seu id.
+ * @param {number} id - id da tarefa (timestamp)
+ */
 function concluirTarefa(id) {
-    let todos = db.getTodos();
-    todos = todos.map(t => t.id === id ? { ...t, done: true } : t);
-    db.saveTodos(todos);
-    renderDashboard();
+  const todos = getTodos();
+  const idx   = todos.findIndex(t => t.id === id);
+  if (idx === -1) return;
+
+  // Inverte o status
+  todos[idx].feita = !todos[idx].feita;
+  saveTodos(todos);
+  renderizarTarefas();
 }
 
-// Renderização do Painel
-function renderDashboard() {
-    const user = db.getCurrentUser();
-    document.body.classList.remove('flex', 'items-center', 'justify-center'); // Ajusta layout para o painel
-    
-    document.getElementById('app').innerHTML = `
-        <div class="max-w-4xl mx-auto w-full p-6 text-white">
-            <header class="flex justify-between items-center mb-10">
-                <h1 class="text-2xl font-bold">Olá, ${user.nome} 👋</h1>
-                <button onclick="logout()" class="bg-red-500/20 hover:bg-red-500 p-2 px-4 rounded-lg transition-all">Sair</button>
-            </header>
+/**
+ * Remove permanentemente uma tarefa pelo seu id.
+ * @param {number} id
+ */
+function excluirTarefa(id) {
+  const todos = getTodos().filter(t => t.id !== id);
+  saveTodos(todos);
+  renderizarTarefas();
+}
 
-            <form onsubmit="event.preventDefault(); adicionarTarefa(this.t.value, this.tp.value, this.d.value)" class="glass-morphism p-6 rounded-xl mb-10">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <input name="t" placeholder="Título da tarefa" required class="p-3 bg-slate-800 rounded-lg outline-none">
-                    <select name="tp" class="p-3 bg-slate-800 rounded-lg outline-none text-white">
-                        <option value="Trabalho">Trabalho</option>
-                        <option value="Pessoal">Pessoal</option>
-                        <option value="Estudos">Estudos</option>
-                    </select>
-                </div>
-                <textarea name="d" placeholder="Descrição (opcional)" class="w-full p-3 bg-slate-800 rounded-lg outline-none mb-4"></textarea>
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 p-3 rounded-lg font-bold">Adicionar Tarefa</button>
-            </form>
+/**
+ * Renderiza a lista de tarefas do usuário logado no DOM.
+ * Tarefas concluídas aparecem no final, com estilo diferenciado.
+ */
+function renderizarTarefas() {
+  const user     = getCurrentUser();
+  const container = document.getElementById('lista-tarefas');
+  const contador  = document.getElementById('task-contador');
 
-            <div id="lista" class="grid gap-4"></div>
+  if (!user) return;
+
+  // Filtra apenas as tarefas do usuário atual
+  const todos = getTodos().filter(t => t.userId === user.email);
+
+  // Pendentes primeiro, concluídas no final
+  const pendentes  = todos.filter(t => !t.feita);
+  const concluidas = todos.filter(t =>  t.feita);
+  const ordenadas  = [...pendentes, ...concluidas];
+
+  // Atualiza contador
+  contador.textContent = `${pendentes.length} pendente(s) · ${concluidas.length} concluída(s)`;
+
+  // Sem tarefas
+  if (ordenadas.length === 0) {
+    container.innerHTML = `
+      <div class="glass p-8 text-center">
+        <p class="text-slate-500 text-sm">Nenhuma tarefa cadastrada ainda.</p>
+        <p class="text-slate-600 text-xs mt-1">Crie sua primeira tarefa acima ↑</p>
+      </div>`;
+    return;
+  }
+
+  // Mapeamento de badge por tipo
+  const badges = {
+    trabalho: '<span class="badge badge-trabalho">Trabalho</span>',
+    pessoal:  '<span class="badge badge-pessoal">Pessoal</span>',
+    estudos:  '<span class="badge badge-estudos">Estudos</span>',
+  };
+
+  // Gera o HTML de cada card de tarefa
+  container.innerHTML = ordenadas.map(t => `
+    <div class="glass p-4 fade-up ${t.feita ? 'task-done' : ''}">
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap mb-1">
+            <p class="task-title font-semibold text-white text-sm">${escapeHtml(t.titulo)}</p>
+            ${badges[t.tipo] || ''}
+          </div>
+          ${t.descricao
+            ? `<p class="text-slate-400 text-xs mt-1 leading-relaxed">${escapeHtml(t.descricao)}</p>`
+            : ''}
+          <p class="text-slate-600 text-xs mt-2">📅 ${t.criadaEm}</p>
         </div>
-    `;
-
-    const userTodos = db.getTodos().filter(t => t.userId === user.email);
-    const lista = document.getElementById('lista');
-
-    if (userTodos.length === 0) {
-        lista.innerHTML = `<p class="text-center text-gray-500">Nenhuma tarefa encontrada.</p>`;
-    } else {
-        lista.innerHTML = userTodos.map(t => `
-            <div class="glass-morphism p-4 rounded-lg flex justify-between items-center ${t.done ? 'opacity-40' : ''}">
-                <div>
-                    <h3 class="font-bold ${t.done ? 'line-through' : ''}">${t.titulo}</h3>
-                    <p class="text-sm text-gray-400">${t.descricao}</p>
-                    <span class="text-[10px] uppercase font-bold bg-blue-900 px-2 py-0.5 rounded">${t.tipo}</span>
-                </div>
-                ${!t.done ? `<button onclick="concluirTarefa(${t.id})" class="bg-green-600 p-2 px-4 rounded text-xs font-bold">Concluir</button>` : '✅'}
-            </div>
-        `).join('');
-    }
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button
+            onclick="concluirTarefa(${t.id})"
+            title="${t.feita ? 'Reabrir tarefa' : 'Marcar como concluída'}"
+            class="text-xs px-3 py-1.5 rounded-lg border transition-all duration-200
+              ${t.feita
+                ? 'border-slate-700 text-slate-500 hover:border-slate-600'
+                : 'border-emerald-700 text-emerald-400 hover:bg-emerald-900/30'}">
+            ${t.feita ? '↩ Reabrir' : '✓ Concluir'}
+          </button>
+          <button
+            onclick="excluirTarefa(${t.id})"
+            title="Excluir tarefa"
+            class="text-xs px-2 py-1.5 rounded-lg border border-slate-700 text-slate-500
+              hover:border-red-800 hover:text-red-400 transition-all duration-200">
+            ✕
+          </button>
+        </div>
+      </div>
+    </div>
+  `).join('');
 }
 
-// Inicialização
-if (db.getCurrentUser()) renderDashboard();
+/**
+ * Escapa caracteres especiais HTML para evitar XSS
+ * ao inserir texto do usuário no DOM.
+ * @param {string} str
+ * @returns {string}
+ */
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
+/**
+ * Suporte a pressionar Enter nos campos de login e cadastro.
+ */
+function inicializarAtalhos() {
+  document.getElementById('login-senha').addEventListener('keydown', e => {
+    if (e.key === 'Enter') realizarLogin();
+  });
+  document.getElementById('cad-senha').addEventListener('keydown', e => {
+    if (e.key === 'Enter') realizarCadastro();
+  });
+  document.getElementById('task-titulo').addEventListener('keydown', e => {
+    if (e.key === 'Enter') adicionarTarefa();
+  });
+}
+
+
+// ════════════════════════════════════════════════════════════════════
+// INICIALIZAÇÃO DA APLICAÇÃO
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * Ponto de entrada.
+ * Verifica se há um usuário já logado (currentUser no localStorage)
+ * e carrega a tela adequada sem forçar novo login.
+ */
+(function init() {
+  inicializarAtalhos();
+
+  const user = getCurrentUser();
+  if (user) {
+    // Usuário já estava logado — vai direto ao painel
+    carregarPainel();
+  } else {
+    // Nenhuma sessão ativa — exibe tela de login
+    mostrarTela('screen-login');
+  }
+})();
